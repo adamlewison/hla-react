@@ -11,3 +11,21 @@ We offer a variety of skills and versatility but specifically we offer a persona
 The present principle Martin Lewison joined the company in 1991 and became partner in 2002. He is a registered Professional Architect and has been practicing architecture for approximately 25 years.
 
 Martin Lewison has without compromise contributed his specific areas of expertise and vision to the quality of design, creativity and high level of service which forms the backbone of Hlarchitects.
+
+## Project Categories
+
+- Residential
+- Commercial
+- Container Architecture
+- Education
+
+## Website Pages
+
+- Home
+- About
+- Projects
+- Contact
+
+## Contact
+
+Email: hla@hla.co.za
