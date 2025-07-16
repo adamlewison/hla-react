@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Resend } from "resend";
 import { Link } from "react-router-dom";
 import {
   Menu,
@@ -15,15 +16,66 @@ import {
   ChevronRight,
   Calendar,
   Ruler,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import {
-  getProjects,
   getCategories,
   getProjectsByCategory,
   getHeroSlides,
 } from "./api/api.js";
+import useProjects from "./hooks/useProjects";
 
 const HLAWebsite = () => {
+  // Contact form state
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    message: "",
+    projectType: "",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Initialize Resend
+  const resend = new Resend(process.env.REACT_APP_RESEND_API_KEY);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const templateParams = {
+        from_name: formData.name,
+        from_email: formData.email,
+        message: formData.message,
+      };
+
+      await resend.emails.send({
+        from: "Hla Architecture <onboarding@resend.dev>",
+        to: "lewison97@gmail.com",
+        subject: `New Contact Form Submission from ${formData.name}`,
+        html: `
+          <h2>New Contact Form Submission</h2>
+          <p><strong>Name:</strong> ${formData.name}</p>
+          <p><strong>Email:</strong> ${formData.email}</p>
+          <p><strong>Message:</strong></p>
+          <p>${formData.message}</p>
+        `,
+      });
+
+      setSuccess("Message sent successfully! We will get back to you soon.");
+      setFormData({ name: "", email: "", message: "" });
+    } catch (err) {
+      setError("Failed to send message. Please try again later.");
+      console.error("Error sending message:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -35,25 +87,36 @@ const HLAWebsite = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isVisible, setIsVisible] = useState({});
 
-  const [projects, setProjects] = useState([]);
+  const {
+    projects,
+    loading: projectsLoading,
+    error: projectsError,
+  } = useProjects();
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [categories, setCategories] = useState({});
   const [heroSlides, setHeroSlides] = useState([]);
   const [imageLoadingStatus, setImageLoadingStatus] = useState({});
 
   useEffect(() => {
-    const fetchAllData = async () => {
-      const [projectsData, categoriesData, heroSlidesData] = await Promise.all([
-        getProjects(),
+    const fetchCategoriesAndSlides = async () => {
+      const [categoriesData, heroSlidesData] = await Promise.all([
         getCategories(),
         getHeroSlides(),
       ]);
-      setProjects(projectsData);
       setCategories(categoriesData);
       setHeroSlides(heroSlidesData);
     };
 
-    fetchAllData();
+    fetchCategoriesAndSlides();
   }, []);
+
+  // Track initial load state
+  useEffect(() => {
+    if (!projectsLoading) {
+      setIsInitialLoad(false);
+      setHeroSlides(projects.filter((project) => project.is_featured));
+    }
+  }, [projectsLoading]);
 
   // Auto-slide for hero section
   useEffect(() => {
@@ -390,7 +453,7 @@ const HLAWebsite = () => {
               }`}
             >
               <img
-                src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                src="https://kgdfprpbmoqappauumjb.supabase.co/storage/v1/object/public/project-images/prj118-Image%202.jpg"
                 alt="Modern architecture"
                 className="w-full h-96 object-cover rounded-lg shadow-lg"
               />
@@ -434,53 +497,61 @@ const HLAWebsite = () => {
               Explore our diverse portfolio spanning residential, commercial,
               educational and innovative container architecture projects.
             </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {projects.map((project, index) => (
-              <div
-                key={index}
-                className={`group cursor-pointer transform transition-all duration-700 ${
-                  isVisible.projects
-                    ? "translate-y-0 opacity-100"
-                    : "translate-y-10 opacity-0"
-                }`}
-                style={{ transitionDelay: `${index * 100}ms` }}
-              >
-                <div className="relative overflow-hidden rounded-lg bg-white shadow-md hover:shadow-xl transition-shadow duration-300">
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={project.image}
-                      alt={project.title}
-                      className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300" />
-                    <div className="absolute top-4 right-4">
-                      <span className="bg-[#2D5A3D] text-white px-3 py-1 rounded-full text-sm">
-                        {project.year}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-xl font-medium mb-2 text-gray-900 group-hover:text-[#2D5A3D] transition-colors">
-                      {project.title}
-                    </h3>
-                    <p className="text-gray-600 mb-4">{project.category}</p>
-                    <div
-                      className="flex items-center text-[#2D5A3D] group-hover:translate-x-2 transition-transform duration-300 cursor-pointer"
-                      onClick={() =>
-                        openProjectFromCategory
-                          ? openProjectFromCategory(project)
-                          : openProject(project)
-                      }
-                    >
-                      <span className="text-sm font-medium">View Project</span>
-                      <ArrowRight size={16} className="ml-2" />
-                    </div>
-                  </div>
-                </div>
+            {projectsLoading && isInitialLoad ? (
+              <div className="w-full py-16 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D5A3D] mb-4"></div>
+                <p className="text-gray-600">Loading projects...</p>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {projects
+                  .filter((project) => project.is_featured)
+                  .map((project, index) => (
+                    <div
+                      key={project.id || index}
+                      style={{ transitionDelay: `${index * 100}ms` }}
+                      className="group"
+                    >
+                      <div className="relative overflow-hidden rounded-lg bg-white shadow-md hover:shadow-xl transition-shadow duration-300 h-full">
+                        <div className="relative overflow-hidden">
+                          <img
+                            src={project.image}
+                            alt={project.title}
+                            className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300" />
+                          <div className="absolute top-4 right-4">
+                            <span className="bg-[#2D5A3D] text-white px-3 py-1 rounded-full text-sm">
+                              {project.year}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="p-6">
+                          <h3 className="text-xl font-medium mb-2 text-gray-900 group-hover:text-[#2D5A3D] transition-colors">
+                            {project.title}
+                          </h3>
+                          <p className="text-gray-600 mb-4">
+                            {project.category}
+                          </p>
+                          <div
+                            className="flex items-center text-[#2D5A3D] group-hover:translate-x-2 transition-transform duration-300 cursor-pointer"
+                            onClick={() =>
+                              openProjectFromCategory
+                                ? openProjectFromCategory(project)
+                                : openProject(project)
+                            }
+                          >
+                            <span className="text-sm font-medium">
+                              View Project
+                            </span>
+                            <ArrowRight size={16} className="ml-2" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
 
           <div className="text-center mt-12">
@@ -583,53 +654,141 @@ const HLAWebsite = () => {
                   <span>Johannesburg, South Africa</span>
                 </div>
               </div>
+
+              {error && (
+                <div className="mt-4 text-red-500 text-sm bg-red-900/20 p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="mt-4 text-green-500 text-sm bg-green-900/20 p-3 rounded-lg">
+                  {success}
+                </div>
+              )}
             </div>
 
             <div className="bg-gray-800 rounded-lg p-8">
               <h3 className="text-2xl font-medium mb-6">Start Your Project</h3>
-              <div className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
+                  <label
+                    htmlFor="name"
+                    className="block text-sm text-gray-300 mb-2"
+                  >
+                    Your Name
+                  </label>
                   <input
+                    id="name"
                     type="text"
                     placeholder="Your Name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7C59]"
+                    required
                   />
                 </div>
                 <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm text-gray-300 mb-2"
+                  >
+                    Your Email
+                  </label>
                   <input
+                    id="email"
                     type="email"
                     placeholder="Your Email"
+                    value={formData.email}
+                    onChange={(e) => {
+                      const email = e.target.value;
+                      setFormData({ ...formData, email });
+                      // Simple email validation
+                      if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                        setError("Please enter a valid email address");
+                      } else {
+                        setError("");
+                      }
+                    }}
                     className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7C59]"
+                    required
                   />
                 </div>
                 <div>
-                  <select className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#4A7C59]">
-                    <option>Project Type</option>
-                    <option>Residential</option>
-                    <option>Commercial</option>
-                    <option>Education</option>
-                    <option>Container Architecture</option>
+                  <label
+                    htmlFor="projectType"
+                    className="block text-sm text-gray-300 mb-2"
+                  >
+                    Project Type
+                  </label>
+                  <select
+                    id="projectType"
+                    value={formData.projectType}
+                    onChange={(e) =>
+                      setFormData({ ...formData, projectType: e.target.value })
+                    }
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-[#4A7C59]"
+                    required
+                  >
+                    <option value="">Select Project Type</option>
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                    <option value="education">Education</option>
+                    <option value="container">Container Architecture</option>
                   </select>
                 </div>
                 <div>
+                  <label
+                    htmlFor="message"
+                    className="block text-sm text-gray-300 mb-2"
+                  >
+                    Your Message
+                  </label>
                   <textarea
+                    id="message"
                     rows={4}
-                    placeholder="Tell us about your project"
+                    placeholder="Your Message"
+                    value={formData.message}
+                    onChange={(e) =>
+                      setFormData({ ...formData, message: e.target.value })
+                    }
                     className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#4A7C59]"
-                  ></textarea>
+                    required
+                  />
                 </div>
-                <button
-                  type="button"
-                  className="w-full bg-[#2D5A3D] text-white py-3 rounded-lg hover:bg-[#4A7C59] transition-colors duration-300"
-                  onClick={() =>
-                    alert(
-                      "Thank you for your interest! Please email us at hla@hla.co.za"
-                    )
-                  }
-                >
-                  Send Message
-                </button>
-              </div>
+                <div className="flex flex-col items-center">
+                  <button
+                    type="submit"
+                    disabled={
+                      isSubmitting ||
+                      !formData.name ||
+                      !formData.email ||
+                      !formData.message ||
+                      !formData.projectType
+                    }
+                    className="w-full px-6 py-3 bg-[#4A7C59] text-white rounded-lg hover:bg-[#385a47] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    aria-label="Submit contact form"
+                    onClick={handleSubmit}
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center">
+                        <Loader2
+                          className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                          aria-label="Loading..."
+                        />
+                        Sending...
+                      </span>
+                    ) : (
+                      "Send Message"
+                    )}
+                  </button>
+                </div>
+              </form>
+              {error && <div className="text-red-500 text-sm">{error}</div>}
+              {success && (
+                <div className="text-green-500 text-sm">{success}</div>
+              )}
             </div>
           </div>
         </div>

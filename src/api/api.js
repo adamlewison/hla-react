@@ -1,6 +1,7 @@
+import { supabase } from "../lib/supabase";
+import { imageUrl } from "../lib/utils";
 // --- MOCK DATA ---
-// In a real application, this data would be fetched from a CMS or database.
-
+// Fallback data in case Supabase is not available
 const categories = {
   Residential: {
     title: "Residential Projects",
@@ -287,12 +288,81 @@ const projects = [
 
 // --- API FUNCTIONS ---
 
-export const getProjects = () => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(projects);
-    }, 500); // Simulate network delay
-  });
+/**
+ * Fetches features for a specific project from Supabase
+ * @param {string} projectId - The UUID of the project to fetch features for
+ * @returns {Promise<Array>} Array of feature objects with name and description
+ */
+export async function getProjectFeatures(projectId) {
+  const { data, error } = await supabase
+    .from("project_features")
+    .select("feature_name, feature_description, feature_category")
+    .eq("project_id", projectId)
+    .order("sort_order", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Fetches all projects from Supabase and formats them for the UI
+ * @returns {Promise<Array>} Array of project objects formatted for the UI
+ */
+export const getProjects = async () => {
+  try {
+    // Fetch projects with related data in a single query
+    const { data: projects, error } = await supabase
+      .from("projects")
+      .select(
+        `
+        *,
+        project_categories:category_id (name, slug),
+        project_images (image_url, is_featured)
+      `
+      )
+      .order("start_date", { ascending: false });
+
+    if (error) throw error;
+
+    if (!projects) return [];
+
+    // Transform the data to match the UI requirements
+    return projects.map((project) => {
+      // Find the featured image or fall back to the first image
+      const primaryImage =
+        //project.project_images?.find((img) => img.is_featured) ||
+        project.featured_image_url || project.project_images?.[0].image_url;
+
+      // Extract year from start_date or use current year as fallback
+      const projectYear = project.actual_completion_date
+        ? new Date(project.actual_completion_date).getFullYear().toString()
+        : new Date().getFullYear().toString();
+
+      return {
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        year: projectYear,
+        category: project.project_categories?.name || "Uncategorized",
+        image:
+          imageUrl(primaryImage) ||
+          "https://placehold.co/600x400?text=No+Image",
+        // Include additional fields that might be needed by the UI
+        location: project.location,
+        slug: project.slug,
+        is_featured: project.is_featured,
+        images: project.project_images.map((image) =>
+          imageUrl(image.image_url)
+        ),
+        // Keep the original project data in a separate field in case it's needed
+        _raw: project,
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching projects:", error);
+    // Fallback to mock data in case of error
+    return projects;
+  }
 };
 
 export const getCategories = () => {
